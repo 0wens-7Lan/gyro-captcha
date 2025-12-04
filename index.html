@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>摇一摇验证码</title>
     <style>
-        /* 1. 全局样式和背景 */
+        /* CSS 样式保持不变 */
         body {
             margin: 0;
             padding: 0;
@@ -16,10 +16,9 @@
             align-items: center;
             height: 100vh;
             overflow: hidden;
-            padding-top: 50px; /* 为顶部留出空间 */
+            padding-top: 50px;
         }
 
-        /* 头部标题 */
         .header {
             position: fixed;
             top: 0;
@@ -35,7 +34,6 @@
             border-bottom: 1px solid #eee;
         }
 
-        /* 验证区域卡片 */
         .verification-card {
             background-color: white;
             border-radius: 12px;
@@ -47,7 +45,6 @@
             box-sizing: border-box;
         }
 
-        /* 2. 提示信息 */
         .prompt {
             text-align: center;
             padding-bottom: 20px;
@@ -65,7 +62,6 @@
             margin-top: 5px;
         }
 
-        /* 3. 目标位置区域 */
         .target-area {
             background-color: #ff5773;
             color: white;
@@ -94,7 +90,6 @@
             opacity: 0.8;
         }
 
-        /* 目标位置定位点 (白色小圆点) */
         .target-marker {
             position: absolute;
             bottom: -5px;
@@ -106,7 +101,6 @@
             transition: left 0.5s ease;
         }
 
-        /* 4. 滑动条区域 */
         .slider-container {
             position: relative;
             height: 30px;
@@ -124,7 +118,6 @@
             transform: translateY(-50%);
         }
 
-        /* 可移动的小球/滑块 */
         .slider-handle {
             position: absolute;
             top: 50%;
@@ -137,7 +130,6 @@
             transition: background-color 0.3s ease;
         }
         
-        /* 左右箭头图标 */
         .arrow-icon {
             position: absolute;
             top: 50%;
@@ -155,7 +147,6 @@
             right: -30px;
         }
 
-        /* 5. 刻度尺 */
         .scale-ruler {
             display: flex;
             justify-content: space-between;
@@ -165,7 +156,6 @@
             font-size: 10px;
         }
 
-        /* 6. 当前位置显示框 */
         .current-position-box {
             border: 1px solid #ddd;
             background-color: #f0f0f0;
@@ -193,7 +183,6 @@
             color: #1a73e8;
         }
 
-        /* 验证成功/失败提示 */
         .message {
             margin-top: 20px;
             text-align: center;
@@ -210,7 +199,6 @@
             color: red;
         }
         
-        /* 权限按钮样式 */
         #permissionButton {
             background-color: #1a73e8;
             color: white;
@@ -229,7 +217,6 @@
             cursor: not-allowed;
         }
 
-        /* 底部导航栏模拟 */
         .nav-bar {
             position: fixed; 
             bottom: 0; 
@@ -315,22 +302,22 @@
         let targetValue = 0.000;
         let timer = null;
         
-        // 容错范围 (Tolerance)：允许的误差 (±0.02)。当前值在 [目标值 - 0.02, 目标值 + 0.02] 内即可通过验证。
-        const TARGET_TOLERANCE = 0.02; 
+        // 【零误差匹配】TARGET_TOLERANCE 设置为 0，必须完全相等
+        const TARGET_TOLERANCE = 0; 
         const HOLD_DURATION = 3000; 
 
-        // 灵敏度：手机最大倾斜角度限制，当前设置为 45 度。值越小越灵敏。
-        const MAX_TILT_ANGLE = 45; 
-        const TILT_RANGE = 2 * MAX_TILT_ANGLE; // 90度 (45 - (-45))
+        // 【极高灵敏度】MAX_TILT_ANGLE 降至 5 度，只需倾斜 5 度即可覆盖 0-1 的范围。
+        const MAX_TILT_ANGLE = 5; 
+        const TILT_RANGE = 2 * MAX_TILT_ANGLE; 
 
         let sensorActive = false;
         
         // 核心：通过手机倾斜角度 (gamma) 映射到 0 到 1 的位置
         function mapAngleToPosition(gamma) {
-            // 1. 限制 gamma 角在更小的范围，解决“到头后继续倾斜感觉又循环”的问题。
+            // 1. 限制 gamma 角在 [-5, 5] 之间，防止滑块溢出
             gamma = Math.max(-MAX_TILT_ANGLE, Math.min(MAX_TILT_ANGLE, gamma));
             
-            // 2. 映射逻辑：将 (-MAX_TILT_ANGLE) 到 (MAX_TILT_ANGLE) 映射到 0 到 1
+            // 2. 映射逻辑：将 [-5, 5] 映射到 [0, 1]
             let position = (gamma + MAX_TILT_ANGLE) / TILT_RANGE;
             
             // 3. 最终保险：确保结果在 0 到 1 范围内
@@ -340,6 +327,7 @@
         // 1. 初始化 - 随机生成目标位置
         function initializeTarget() {
             // 确保目标值在 0.1 到 0.9 之间，避免边缘
+            // 注意：toFixed(3) 只能保证显示三位，实际的浮点数比较仍可能失败
             targetValue = (Math.random() * 0.8 + 0.1).toFixed(3);
             targetValue = parseFloat(targetValue);
             targetValueDisplay.textContent = targetValue.toFixed(3);
@@ -348,8 +336,7 @@
             const targetPosition = targetValue * containerWidth;
             targetMarker.style.left = targetPosition + 'px';
             
-            // 重置滑块位置和状态
-            currentValue = 0.500; // 初始设为中间
+            currentValue = 0.500;
             updateHandlePosition(currentValue * containerWidth); 
             verificationMessage.textContent = sensorActive ? '请摇晃手机移动滑块' : '请点击上方按钮授权';
             verificationMessage.className = 'message';
@@ -363,24 +350,26 @@
             sliderHandle.style.left = x + 'px';
             
             currentValue = (x / containerWidth);
-            currentValueDisplay.textContent = currentValue.toFixed(3);
+            currentValueDisplay.textContent = currentValue.toFixed(3); // 显示三位小数
             
             if (sensorActive) {
                 checkVerificationStatus();
             }
         }
 
-        // 3. 验证逻辑
+        // 3. 验证逻辑 (改为严格等于比较)
         function checkVerificationStatus() {
-            const diff = Math.abs(currentValue - targetValue);
+            // 比较toFixed(3)后的字符串值，这是实现“看起来一模一样”且严格匹配的最简单方法
+            const currentStr = currentValue.toFixed(3);
+            const targetStr = targetValue.toFixed(3);
             
-            // 使用 TARGET_TOLERANCE 进行范围检查
-            if (diff <= TARGET_TOLERANCE) {
+            if (currentStr === targetStr) {
                 sliderHandle.style.backgroundColor = '#4CAF50'; 
                 if (!timer) {
                     verificationMessage.textContent = '位置接近，请保持...';
                     timer = setTimeout(() => {
-                        if (Math.abs(currentValue - targetValue) <= TARGET_TOLERANCE) {
+                        // 再次检查，防止手抖
+                        if (currentValue.toFixed(3) === targetValue.toFixed(3)) {
                             verificationSuccess();
                         } else {
                             resetTimerAndStatus('请保持稳定');
@@ -423,7 +412,6 @@
         function handleDeviceOrientation(event) {
             if (!sensorActive) return;
             
-            // gamma 是设备在 Z 轴上的旋转角，代表左右倾斜
             const gamma = event.gamma; 
             
             if (gamma !== null) {
@@ -437,7 +425,6 @@
         function requestSensorPermission() {
             permissionButton.disabled = true;
             
-            // 检查是否支持 iOS 13+ 的权限请求 API
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
@@ -451,14 +438,12 @@
                         }
                     })
                     .catch(error => {
-                        // 出现错误，例如不是 HTTPS
                         permissionButton.disabled = false;
                         permissionButton.textContent = '授权失败，请重试';
                         verificationMessage.textContent = '授权请求失败 (' + error.message + ')。请确保使用HTTPS或本地环境。';
                         verificationMessage.className = 'message error';
                     });
             } else {
-                // 非 iOS 13+ 设备或旧版 Android (通常默认允许)
                 startSensorListening();
             }
         }
@@ -476,7 +461,6 @@
         // 6. 事件绑定和初始化
         permissionButton.addEventListener('click', requestSensorPermission);
         
-        // 屏幕大小变化时重新初始化UI位置
         window.addEventListener('resize', () => {
             containerWidth = sliderContainer.clientWidth; 
             updateHandlePosition(currentValue * containerWidth);
@@ -484,16 +468,12 @@
             targetMarker.style.left = targetPosition + 'px';
         });
 
-        // 首次加载
         initializeTarget();
         
-        // 初始检查是否需要按钮（仅支持陀螺仪 API 的浏览器才显示按钮，否则默认启动）
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') {
-            // Android 或旧版浏览器，默认直接启动传感器
             permissionButton.style.display = 'none';
             startSensorListening();
         } else if (typeof DeviceOrientationEvent === 'undefined') {
-             // 不支持传感器
             permissionButton.disabled = true;
             permissionButton.textContent = '设备不支持运动传感器';
             verificationMessage.textContent = '您的设备/浏览器不支持运动传感器功能';
