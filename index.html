@@ -211,6 +211,21 @@
             width: 100%;
             box-sizing: border-box;
         }
+        /* 新增 校准按钮 样式 */
+        #calibrateButton {
+            background-color: #FFA500; /* 橙色 */
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            width: 100%;
+            box-sizing: border-box;
+            display: none; /* 初始隐藏 */
+        }
+
 
         #permissionButton:disabled {
             background-color: #ccc;
@@ -244,6 +259,7 @@
     <div class="verification-card">
         
         <button id="permissionButton">点击授权摇晃手机</button>
+        <button id="calibrateButton">手机水平放置后，点击校准 (设为 0.500)</button>
 
         <div class="prompt">
             <h3>验证您不是机器人🤖</h3>
@@ -296,6 +312,7 @@
         const targetMarker = document.getElementById('targetMarker');
         const verificationMessage = document.getElementById('verificationMessage');
         const permissionButton = document.getElementById('permissionButton');
+        const calibrateButton = document.getElementById('calibrateButton'); // 新增校准按钮
 
         let containerWidth = sliderContainer.clientWidth;
         let currentValue = 0.500;
@@ -310,11 +327,11 @@
         const MAX_TILT_ANGLE = 5; 
         const TILT_RANGE = 2 * MAX_TILT_ANGLE; 
 
-        // 【新增基准角】用于校准，确保水平时 (gamma=0) 映射位置是 0.500
+        // 【基准角】用于校准，确保水平时 (gamma=0) 映射位置是 0.500
         let BASELINE_GAMMA = 0; 
         
-        // 【新增平滑系数】值越小越平滑/稳定，但延迟越大。0.1 是一个很好的折衷值。
-        const SMOOTHING_FACTOR = 0.1;
+        // 【增强平滑系数】从 0.1 降至 0.05，进一步增强稳定性。
+        const SMOOTHING_FACTOR = 0.05;
         let smoothedGamma = 0;
 
         let sensorActive = false;
@@ -346,7 +363,16 @@
             
             currentValue = 0.500;
             updateHandlePosition(currentValue * containerWidth); 
-            verificationMessage.textContent = sensorActive ? '请摇晃手机移动滑块' : '请点击上方按钮授权';
+            
+            // 初始状态判断显示信息
+            if (!sensorActive) {
+                 verificationMessage.textContent = '请点击上方按钮授权';
+            } else if (calibrateButton.style.display !== 'none') {
+                 verificationMessage.textContent = '请先点击校准按钮';
+            } else {
+                 verificationMessage.textContent = '请摇晃手机移动滑块';
+            }
+            
             verificationMessage.className = 'message';
             clearTimeout(timer);
         }
@@ -358,25 +384,24 @@
             sliderHandle.style.left = x + 'px';
             
             currentValue = (x / containerWidth);
-            currentValueDisplay.textContent = currentValue.toFixed(3); // 显示三位小数
+            currentValueDisplay.textContent = currentValue.toFixed(3); 
             
-            if (sensorActive) {
+            if (sensorActive && calibrateButton.style.display === 'none') {
                 checkVerificationStatus();
             }
         }
 
         // 3. 验证逻辑 (严格等于比较)
         function checkVerificationStatus() {
-            // 比较toFixed(3)后的字符串值，这是实现“看起来一模一样”且严格匹配的最简单方法
+            // 比较 toFixed(3)后的字符串值，实现严格匹配
             const currentStr = currentValue.toFixed(3);
             const targetStr = targetValue.toFixed(3);
             
             if (currentStr === targetStr) {
                 sliderHandle.style.backgroundColor = '#4CAF50'; 
                 if (!timer) {
-                    verificationMessage.textContent = '位置接近，请保持...';
+                    verificationMessage.textContent = '位置精确，请保持...';
                     timer = setTimeout(() => {
-                        // 再次检查，防止手抖
                         if (currentValue.toFixed(3) === targetValue.toFixed(3)) {
                             verificationSuccess();
                         } else {
@@ -399,8 +424,7 @@
                 verificationMessage.textContent = message;
                 verificationMessage.className = 'message error';
             } else {
-                verificationMessage.textContent = sensorActive ? '请摇晃手机移动滑块' : '请点击上方按钮授权';
-                verificationMessage.className = 'message';
+                initializeTarget();
             }
         }
 
@@ -412,32 +436,42 @@
             sliderHandle.style.backgroundColor = '#4CAF50';
             verificationMessage.textContent = '✅ 验证成功！刷新页面重新开始';
             verificationMessage.className = 'message success';
-            permissionButton.disabled = true;
-            permissionButton.textContent = '已完成验证';
+            permissionButton.style.display = 'none';
+            calibrateButton.style.display = 'none';
         }
         
-        // 4. 陀螺仪/方向传感器处理函数 (新增平滑逻辑)
+        // 4. 陀螺仪/方向传感器处理函数 (平滑逻辑)
         function handleDeviceOrientation(event) {
             if (!sensorActive) return;
             
             const gamma = event.gamma; 
             
             if (gamma !== null) {
-                // 平滑处理：减少传感器噪声和抖动 (低通滤波)
+                // 平滑处理：减少传感器噪声和抖动
                 smoothedGamma = smoothedGamma * (1 - SMOOTHING_FACTOR) + gamma * SMOOTHING_FACTOR;
                 
-                // 首次获取数据时，设置基准线，确保当前水平位置是 0.500
-                if (BASELINE_GAMMA === 0) {
-                    BASELINE_GAMMA = smoothedGamma;
-                }
-
                 const mappedPosition = mapAngleToPosition(smoothedGamma);
                 const newX = mappedPosition * containerWidth;
                 updateHandlePosition(newX);
             }
         }
-        
-        // 5. 权限请求和启动传感器
+
+        // 5. 校准函数 (新增)
+        function performCalibration() {
+             // 校准时，将当前的平滑后的 gamma 值设为基准线
+            if (smoothedGamma !== 0) {
+                BASELINE_GAMMA = smoothedGamma;
+                calibrateButton.style.display = 'none'; // 校准完成后隐藏按钮
+                initializeTarget(); // 重新初始化验证码目标
+                verificationMessage.textContent = '校准完成，请摇晃手机移动滑块';
+                verificationMessage.className = 'message';
+            } else {
+                verificationMessage.textContent = '传感器数据尚未准备好，请稍等...';
+                verificationMessage.className = 'message error';
+            }
+        }
+
+        // 6. 权限请求和启动传感器
         function requestSensorPermission() {
             permissionButton.disabled = true;
             
@@ -466,16 +500,18 @@
 
         function startSensorListening() {
             sensorActive = true;
-            permissionButton.textContent = '已授权 (摇晃手机)';
+            permissionButton.style.display = 'none'; // 隐藏权限按钮
+            calibrateButton.style.display = 'block'; // 显示校准按钮
             
             window.addEventListener('deviceorientation', handleDeviceOrientation);
             
-            verificationMessage.textContent = '请摇晃手机移动滑块';
-            verificationMessage.className = 'message';
+            verificationMessage.textContent = '请先将手机水平放置，并点击校准按钮';
+            verificationMessage.className = 'message error';
         }
 
-        // 6. 事件绑定和初始化
+        // 7. 事件绑定和初始化
         permissionButton.addEventListener('click', requestSensorPermission);
+        calibrateButton.addEventListener('click', performCalibration); // 绑定校准按钮事件
         
         window.addEventListener('resize', () => {
             containerWidth = sliderContainer.clientWidth; 
@@ -486,10 +522,17 @@
 
         initializeTarget();
         
+        // 初始检查
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') {
+            // Android 或旧版浏览器，默认直接启动传感器
             permissionButton.style.display = 'none';
             startSensorListening();
+            // 在这种情况下，校准可以默认执行一次
+            if (smoothedGamma !== 0) {
+                BASELINE_GAMMA = smoothedGamma;
+            }
         } else if (typeof DeviceOrientationEvent === 'undefined') {
+            // 不支持传感器
             permissionButton.disabled = true;
             permissionButton.textContent = '设备不支持运动传感器';
             verificationMessage.textContent = '您的设备/浏览器不支持运动传感器功能';
