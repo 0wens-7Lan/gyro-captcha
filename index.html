@@ -43,7 +43,7 @@
             width: 90%;
             max-width: 400px;
             padding: 20px 15px;
-            margin-top: 10px; /* 调整位置 */
+            margin-top: 10px;
             box-sizing: border-box;
         }
 
@@ -134,7 +134,6 @@
             border-radius: 50%;
             transform: translate(-50%, -50%);
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            /* 移除 cursor: grab; 因为现在是摇晃控制 */
             transition: background-color 0.3s ease;
         }
         
@@ -315,32 +314,32 @@
         let currentValue = 0.500;
         let targetValue = 0.000;
         let timer = null;
-        const TARGET_TOLERANCE = 0.02; // 误差范围 (±0.02)
-        const HOLD_DURATION = 3000; // 保持时间3秒
+        
+        // 容错范围 (Tolerance)：允许的误差 (±0.02)。当前值在 [目标值 - 0.02, 目标值 + 0.02] 内即可通过验证。
+        const TARGET_TOLERANCE = 0.02; 
+        const HOLD_DURATION = 3000; 
+
+        // 灵敏度：手机最大倾斜角度限制，当前设置为 45 度。值越小越灵敏。
+        const MAX_TILT_ANGLE = 45; 
+        const TILT_RANGE = 2 * MAX_TILT_ANGLE; // 90度 (45 - (-45))
+
         let sensorActive = false;
         
-        // **核心：通过手机倾斜角度 (gamma) 映射到 0 到 1 的位置**
+        // 核心：通过手机倾斜角度 (gamma) 映射到 0 到 1 的位置
         function mapAngleToPosition(gamma) {
-            // gamma 角度范围大致在 -90 (左倾) 到 +90 (右倾) 之间
-            // 我们将这个范围映射到滑块的 0 到 1.000
+            // 1. 限制 gamma 角在更小的范围，解决“到头后继续倾斜感觉又循环”的问题。
+            gamma = Math.max(-MAX_TILT_ANGLE, Math.min(MAX_TILT_ANGLE, gamma));
             
-            // 限制 gamma 在 -90 到 90 之间，避免手机侧放或倒置时数据异常
-            gamma = Math.max(-90, Math.min(90, gamma));
+            // 2. 映射逻辑：将 (-MAX_TILT_ANGLE) 到 (MAX_TILT_ANGLE) 映射到 0 到 1
+            let position = (gamma + MAX_TILT_ANGLE) / TILT_RANGE;
             
-            // 归一化处理: (gamma + 90) / 180
-            // 当 gamma = -90 (最左) -> (0)
-            // 当 gamma = 0 (居中)  -> (0.5)
-            // 当 gamma = 90 (最右) -> (1.0)
-            let position = (gamma + 90) / 180;
-            
-            // 稍微进行平滑处理，防止数据跳动过于剧烈 (可选)
-            // position = currentValue * 0.8 + position * 0.2; 
-            
-            return Math.max(0, Math.min(1, position)); // 确保在 0-1 范围内
+            // 3. 最终保险：确保结果在 0 到 1 范围内
+            return Math.max(0, Math.min(1, position)); 
         }
 
         // 1. 初始化 - 随机生成目标位置
         function initializeTarget() {
+            // 确保目标值在 0.1 到 0.9 之间，避免边缘
             targetValue = (Math.random() * 0.8 + 0.1).toFixed(3);
             targetValue = parseFloat(targetValue);
             targetValueDisplay.textContent = targetValue.toFixed(3);
@@ -350,6 +349,7 @@
             targetMarker.style.left = targetPosition + 'px';
             
             // 重置滑块位置和状态
+            currentValue = 0.500; // 初始设为中间
             updateHandlePosition(currentValue * containerWidth); 
             verificationMessage.textContent = sensorActive ? '请摇晃手机移动滑块' : '请点击上方按钮授权';
             verificationMessage.className = 'message';
@@ -374,6 +374,7 @@
         function checkVerificationStatus() {
             const diff = Math.abs(currentValue - targetValue);
             
+            // 使用 TARGET_TOLERANCE 进行范围检查
             if (diff <= TARGET_TOLERANCE) {
                 sliderHandle.style.backgroundColor = '#4CAF50'; 
                 if (!timer) {
@@ -408,11 +409,11 @@
 
         function verificationSuccess() {
             clearTimeout(timer);
-            sensorActive = false; // 成功后停止监听
+            sensorActive = false; 
             window.removeEventListener('deviceorientation', handleDeviceOrientation);
 
             sliderHandle.style.backgroundColor = '#4CAF50';
-            verificationMessage.textContent = '✅ 验证成功！刷新页面重新开始'; // 成功后建议刷新
+            verificationMessage.textContent = '✅ 验证成功！刷新页面重新开始';
             verificationMessage.className = 'message success';
             permissionButton.disabled = true;
             permissionButton.textContent = '已完成验证';
@@ -422,7 +423,7 @@
         function handleDeviceOrientation(event) {
             if (!sensorActive) return;
             
-            // gamma 是设备在 Z 轴上的旋转角，代表左右倾斜 (-90 到 90)
+            // gamma 是设备在 Z 轴上的旋转角，代表左右倾斜
             const gamma = event.gamma; 
             
             if (gamma !== null) {
@@ -468,17 +469,14 @@
             
             window.addEventListener('deviceorientation', handleDeviceOrientation);
             
-            // 重新设置消息提示
             verificationMessage.textContent = '请摇晃手机移动滑块';
             verificationMessage.className = 'message';
         }
 
         // 6. 事件绑定和初始化
-
-        // 绑定权限按钮点击事件
         permissionButton.addEventListener('click', requestSensorPermission);
         
-        // 页面加载和屏幕大小变化时重新初始化UI位置
+        // 屏幕大小变化时重新初始化UI位置
         window.addEventListener('resize', () => {
             containerWidth = sliderContainer.clientWidth; 
             updateHandlePosition(currentValue * containerWidth);
