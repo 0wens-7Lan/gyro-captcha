@@ -306,28 +306,36 @@
         const TARGET_TOLERANCE = 0; 
         const HOLD_DURATION = 3000; 
 
-        // 【极高灵敏度】MAX_TILT_ANGLE 降至 5 度，只需倾斜 5 度即可覆盖 0-1 的范围。
+        // 【极高灵敏度】MAX_TILT_ANGLE 设置为 5 度
         const MAX_TILT_ANGLE = 5; 
         const TILT_RANGE = 2 * MAX_TILT_ANGLE; 
+
+        // 【新增基准角】用于校准，确保水平时 (gamma=0) 映射位置是 0.500
+        let BASELINE_GAMMA = 0; 
+        
+        // 【新增平滑系数】值越小越平滑/稳定，但延迟越大。0.1 是一个很好的折衷值。
+        const SMOOTHING_FACTOR = 0.1;
+        let smoothedGamma = 0;
 
         let sensorActive = false;
         
         // 核心：通过手机倾斜角度 (gamma) 映射到 0 到 1 的位置
         function mapAngleToPosition(gamma) {
-            // 1. 限制 gamma 角在 [-5, 5] 之间，防止滑块溢出
-            gamma = Math.max(-MAX_TILT_ANGLE, Math.min(MAX_TILT_ANGLE, gamma));
+            // 1. 减去基准角，确保水平时 (gamma - BASELINE_GAMMA) = 0
+            const relativeGamma = gamma - BASELINE_GAMMA;
+
+            // 2. 限制相对 gamma 角在 [-5, 5] 之间，防止滑块溢出
+            const clampedGamma = Math.max(-MAX_TILT_ANGLE, Math.min(MAX_TILT_ANGLE, relativeGamma));
             
-            // 2. 映射逻辑：将 [-5, 5] 映射到 [0, 1]
-            let position = (gamma + MAX_TILT_ANGLE) / TILT_RANGE;
+            // 3. 映射逻辑：将 [-5, 5] 映射到 [0, 1]
+            let position = (clampedGamma + MAX_TILT_ANGLE) / TILT_RANGE;
             
-            // 3. 最终保险：确保结果在 0 到 1 范围内
+            // 4. 最终保险：确保结果在 0 到 1 范围内
             return Math.max(0, Math.min(1, position)); 
         }
 
         // 1. 初始化 - 随机生成目标位置
         function initializeTarget() {
-            // 确保目标值在 0.1 到 0.9 之间，避免边缘
-            // 注意：toFixed(3) 只能保证显示三位，实际的浮点数比较仍可能失败
             targetValue = (Math.random() * 0.8 + 0.1).toFixed(3);
             targetValue = parseFloat(targetValue);
             targetValueDisplay.textContent = targetValue.toFixed(3);
@@ -357,7 +365,7 @@
             }
         }
 
-        // 3. 验证逻辑 (改为严格等于比较)
+        // 3. 验证逻辑 (严格等于比较)
         function checkVerificationStatus() {
             // 比较toFixed(3)后的字符串值，这是实现“看起来一模一样”且严格匹配的最简单方法
             const currentStr = currentValue.toFixed(3);
@@ -408,14 +416,22 @@
             permissionButton.textContent = '已完成验证';
         }
         
-        // 4. 陀螺仪/方向传感器处理函数
+        // 4. 陀螺仪/方向传感器处理函数 (新增平滑逻辑)
         function handleDeviceOrientation(event) {
             if (!sensorActive) return;
             
             const gamma = event.gamma; 
             
             if (gamma !== null) {
-                const mappedPosition = mapAngleToPosition(gamma);
+                // 平滑处理：减少传感器噪声和抖动 (低通滤波)
+                smoothedGamma = smoothedGamma * (1 - SMOOTHING_FACTOR) + gamma * SMOOTHING_FACTOR;
+                
+                // 首次获取数据时，设置基准线，确保当前水平位置是 0.500
+                if (BASELINE_GAMMA === 0) {
+                    BASELINE_GAMMA = smoothedGamma;
+                }
+
+                const mappedPosition = mapAngleToPosition(smoothedGamma);
                 const newX = mappedPosition * containerWidth;
                 updateHandlePosition(newX);
             }
