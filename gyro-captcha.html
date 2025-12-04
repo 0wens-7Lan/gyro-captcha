@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>摇一摇验证码</title>
+    <style>
+        /* 1. 全局样式和背景 */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            background-color: #f7f7f7;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            padding-top: 50px; /* 为顶部留出空间 */
+        }
+
+        /* 头部标题 */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            padding: 10px 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            background-color: white;
+            z-index: 10;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* 验证区域卡片 */
+        .verification-card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            width: 90%;
+            max-width: 400px;
+            padding: 20px 15px;
+            margin-top: 10px; /* 调整位置 */
+            box-sizing: border-box;
+        }
+
+        /* 2. 提示信息 */
+        .prompt {
+            text-align: center;
+            padding-bottom: 20px;
+        }
+
+        .prompt h3 {
+            color: #1a73e8;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .prompt p {
+            color: #999;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        /* 3. 目标位置区域 */
+        .target-area {
+            background-color: #ff5773;
+            color: white;
+            border-radius: 8px;
+            padding: 15px 10px;
+            text-align: center;
+            margin-bottom: 25px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .target-area .label {
+            font-size: 12px;
+            margin-bottom: 5px;
+            opacity: 0.8;
+        }
+
+        .target-area .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .target-tip {
+            font-size: 12px;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+
+        /* 目标位置定位点 (白色小圆点) */
+        .target-marker {
+            position: absolute;
+            bottom: -5px;
+            width: 8px;
+            height: 8px;
+            background-color: white;
+            border-radius: 50%;
+            transform: translateX(-50%);
+            transition: left 0.5s ease;
+        }
+
+        /* 4. 滑动条区域 */
+        .slider-container {
+            position: relative;
+            height: 30px;
+            margin-bottom: 20px;
+        }
+
+        .slider-track {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            transform: translateY(-50%);
+        }
+
+        /* 可移动的小球/滑块 */
+        .slider-handle {
+            position: absolute;
+            top: 50%;
+            width: 25px;
+            height: 25px;
+            background-color: #4a90e2;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            /* 移除 cursor: grab; 因为现在是摇晃控制 */
+            transition: background-color 0.3s ease;
+        }
+        
+        /* 左右箭头图标 */
+        .arrow-icon {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #888;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .left-arrow {
+            left: -30px;
+        }
+
+        .right-arrow {
+            right: -30px;
+        }
+
+        /* 5. 刻度尺 */
+        .scale-ruler {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 5px;
+            color: #999;
+            font-size: 10px;
+        }
+
+        /* 6. 当前位置显示框 */
+        .current-position-box {
+            border: 1px solid #ddd;
+            background-color: #f0f0f0;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 30px;
+            text-align: center;
+            position: relative;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .current-position-box .label {
+            position: absolute;
+            bottom: 100%;
+            left: 10px;
+            font-size: 12px;
+            color: #666;
+            padding-bottom: 5px;
+        }
+
+        .current-position-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1a73e8;
+        }
+
+        /* 验证成功/失败提示 */
+        .message {
+            margin-top: 20px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+            min-height: 20px;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+        
+        /* 权限按钮样式 */
+        #permissionButton {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #permissionButton:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* 底部导航栏模拟 */
+        .nav-bar {
+            position: fixed; 
+            bottom: 0; 
+            width: 100%; 
+            height: 50px; 
+            background: #fff; 
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.1); 
+            display: flex; 
+            justify-content: space-around; 
+            align-items: center; 
+            padding-bottom: env(safe-area-inset-bottom, 5px);
+            z-index: 10;
+        }
+        .nav-bar span {
+            font-size: 24px;
+            color: #555;
+            padding: 0 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">第一关：摇一摇验证码</div>
+
+    <div class="verification-card">
+        
+        <button id="permissionButton">点击授权摇晃手机</button>
+
+        <div class="prompt">
+            <h3>验证您不是机器人🤖</h3>
+            <p>倾斜手机左右移动滑块进行验证</p>
+        </div>
+
+        <div class="target-area">
+            <div class="label">目标位置</div>
+            <div class="value" id="targetValue">0.000</div>
+            <div class="target-tip">将滑块移动到此位置并保持3秒</div>
+            <div class="target-marker" id="targetMarker"></div>
+        </div>
+
+        <div class="slider-container" id="sliderContainer">
+            <div class="arrow-icon left-arrow">←</div>
+            <div class="slider-track"></div>
+            <div class="slider-handle" id="sliderHandle"></div>
+            <div class="arrow-icon right-arrow">→</div>
+        </div>
+
+        <div class="scale-ruler">
+            <span>0.000</span>
+            <span>0.250</span>
+            <span>0.500</span>
+            <span>0.750</span>
+            <span>1.000</span>
+        </div>
+
+        <div class="current-position-box">
+            <span class="label">当前位置:</span>
+            <div class="current-position-value" id="currentValue">0.000</div>
+        </div>
+        
+        <div class="message" id="verificationMessage">请点击上方按钮授权</div>
+    </div>
+
+    <div class="nav-bar">
+        <span>&#x2329;</span>
+        <span>&gt;</span>
+        <span>&#x2302;</span>
+        <span>&#x25A1;</span>
+        <span>&#x2642;</span>
+    </div>
+
+    <script>
+        const sliderContainer = document.getElementById('sliderContainer');
+        const sliderHandle = document.getElementById('sliderHandle');
+        const currentValueDisplay = document.getElementById('currentValue');
+        const targetValueDisplay = document.getElementById('targetValue');
+        const targetMarker = document.getElementById('targetMarker');
+        const verificationMessage = document.getElementById('verificationMessage');
+        const permissionButton = document.getElementById('permissionButton');
+
+        let containerWidth = sliderContainer.clientWidth;
+        let currentValue = 0.500;
+        let targetValue = 0.000;
+        let timer = null;
+        const TARGET_TOLERANCE = 0.02; // 误差范围 (±0.02)
+        const HOLD_DURATION = 3000; // 保持时间3秒
+        let sensorActive = false;
+        
+        // **核心：通过手机倾斜角度 (gamma) 映射到 0 到 1 的位置**
+        function mapAngleToPosition(gamma) {
+            // gamma 角度范围大致在 -90 (左倾) 到 +90 (右倾) 之间
+            // 我们将这个范围映射到滑块的 0 到 1.000
+            
+            // 限制 gamma 在 -90 到 90 之间，避免手机侧放或倒置时数据异常
+            gamma = Math.max(-90, Math.min(90, gamma));
+            
+            // 归一化处理: (gamma + 90) / 180
+            // 当 gamma = -90 (最左) -> (0)
+            // 当 gamma = 0 (居中)  -> (0.5)
+            // 当 gamma = 90 (最右) -> (1.0)
+            let position = (gamma + 90) / 180;
+            
+            // 稍微进行平滑处理，防止数据跳动过于剧烈 (可选)
+            // position = currentValue * 0.8 + position * 0.2; 
+            
+            return Math.max(0, Math.min(1, position)); // 确保在 0-1 范围内
+        }
+
+        // 1. 初始化 - 随机生成目标位置
+        function initializeTarget() {
+            targetValue = (Math.random() * 0.8 + 0.1).toFixed(3);
+            targetValue = parseFloat(targetValue);
+            targetValueDisplay.textContent = targetValue.toFixed(3);
+            
+            containerWidth = sliderContainer.clientWidth; 
+            const targetPosition = targetValue * containerWidth;
+            targetMarker.style.left = targetPosition + 'px';
+            
+            // 重置滑块位置和状态
+            updateHandlePosition(currentValue * containerWidth); 
+            verificationMessage.textContent = sensorActive ? '请摇晃手机移动滑块' : '请点击上方按钮授权';
+            verificationMessage.className = 'message';
+            clearTimeout(timer);
+        }
+
+        // 2. 更新滑块位置和当前值
+        function updateHandlePosition(newX) {
+            let x = Math.max(0, Math.min(containerWidth, newX));
+            
+            sliderHandle.style.left = x + 'px';
+            
+            currentValue = (x / containerWidth);
+            currentValueDisplay.textContent = currentValue.toFixed(3);
+            
+            if (sensorActive) {
+                checkVerificationStatus();
+            }
+        }
+
+        // 3. 验证逻辑
+        function checkVerificationStatus() {
+            const diff = Math.abs(currentValue - targetValue);
+            
+            if (diff <= TARGET_TOLERANCE) {
+                sliderHandle.style.backgroundColor = '#4CAF50'; 
+                if (!timer) {
+                    verificationMessage.textContent = '位置接近，请保持...';
+                    timer = setTimeout(() => {
+                        if (Math.abs(currentValue - targetValue) <= TARGET_TOLERANCE) {
+                            verificationSuccess();
+                        } else {
+                            resetTimerAndStatus('请保持稳定');
+                        }
+                    }, HOLD_DURATION);
+                }
+            } else {
+                sliderHandle.style.backgroundColor = '#4a90e2';
+                if (timer) {
+                    resetTimerAndStatus('位置偏差过大');
+                }
+            }
+        }
+
+        function resetTimerAndStatus(message) {
+            clearTimeout(timer);
+            timer = null;
+            if (message) {
+                verificationMessage.textContent = message;
+                verificationMessage.className = 'message error';
+            } else {
+                verificationMessage.textContent = sensorActive ? '请摇晃手机移动滑块' : '请点击上方按钮授权';
+                verificationMessage.className = 'message';
+            }
+        }
+
+        function verificationSuccess() {
+            clearTimeout(timer);
+            sensorActive = false; // 成功后停止监听
+            window.removeEventListener('deviceorientation', handleDeviceOrientation);
+
+            sliderHandle.style.backgroundColor = '#4CAF50';
+            verificationMessage.textContent = '✅ 验证成功！刷新页面重新开始'; // 成功后建议刷新
+            verificationMessage.className = 'message success';
+            permissionButton.disabled = true;
+            permissionButton.textContent = '已完成验证';
+        }
+        
+        // 4. 陀螺仪/方向传感器处理函数
+        function handleDeviceOrientation(event) {
+            if (!sensorActive) return;
+            
+            // gamma 是设备在 Z 轴上的旋转角，代表左右倾斜 (-90 到 90)
+            const gamma = event.gamma; 
+            
+            if (gamma !== null) {
+                const mappedPosition = mapAngleToPosition(gamma);
+                const newX = mappedPosition * containerWidth;
+                updateHandlePosition(newX);
+            }
+        }
+        
+        // 5. 权限请求和启动传感器
+        function requestSensorPermission() {
+            permissionButton.disabled = true;
+            
+            // 检查是否支持 iOS 13+ 的权限请求 API
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            startSensorListening();
+                        } else {
+                            permissionButton.disabled = false;
+                            permissionButton.textContent = '授权失败，请重试';
+                            verificationMessage.textContent = '需要设备运动权限才能使用摇晃功能';
+                            verificationMessage.className = 'message error';
+                        }
+                    })
+                    .catch(error => {
+                        // 出现错误，例如不是 HTTPS
+                        permissionButton.disabled = false;
+                        permissionButton.textContent = '授权失败，请重试';
+                        verificationMessage.textContent = '授权请求失败 (' + error.message + ')。请确保使用HTTPS或本地环境。';
+                        verificationMessage.className = 'message error';
+                    });
+            } else {
+                // 非 iOS 13+ 设备或旧版 Android (通常默认允许)
+                startSensorListening();
+            }
+        }
+
+        function startSensorListening() {
+            sensorActive = true;
+            permissionButton.textContent = '已授权 (摇晃手机)';
+            
+            window.addEventListener('deviceorientation', handleDeviceOrientation);
+            
+            // 重新设置消息提示
+            verificationMessage.textContent = '请摇晃手机移动滑块';
+            verificationMessage.className = 'message';
+        }
+
+        // 6. 事件绑定和初始化
+
+        // 绑定权限按钮点击事件
+        permissionButton.addEventListener('click', requestSensorPermission);
+        
+        // 页面加载和屏幕大小变化时重新初始化UI位置
+        window.addEventListener('resize', () => {
+            containerWidth = sliderContainer.clientWidth; 
+            updateHandlePosition(currentValue * containerWidth);
+            const targetPosition = targetValue * containerWidth;
+            targetMarker.style.left = targetPosition + 'px';
+        });
+
+        // 首次加载
+        initializeTarget();
+        
+        // 初始检查是否需要按钮（仅支持陀螺仪 API 的浏览器才显示按钮，否则默认启动）
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission !== 'function') {
+            // Android 或旧版浏览器，默认直接启动传感器
+            permissionButton.style.display = 'none';
+            startSensorListening();
+        } else if (typeof DeviceOrientationEvent === 'undefined') {
+             // 不支持传感器
+            permissionButton.disabled = true;
+            permissionButton.textContent = '设备不支持运动传感器';
+            verificationMessage.textContent = '您的设备/浏览器不支持运动传感器功能';
+            verificationMessage.className = 'message error';
+        }
+    </script>
+
+</body>
+</html>
