@@ -324,9 +324,9 @@
         // 【保持时间】1500ms
         const HOLD_DURATION = 1500; 
 
-        // 【角度调整】MAX_TILT_ANGLE 调整为 10 度
-        const MAX_TILT_ANGLE = 10; 
-        const TILT_RANGE = 2 * MAX_TILT_ANGLE; // 20 度
+        // 【角度调整】MAX_TILT_ANGLE 调整为 20 度
+        const MAX_TILT_ANGLE = 20; 
+        const TILT_RANGE = 2 * MAX_TILT_ANGLE; // 40 度
 
         // 【基准角】
         let BASELINE_GAMMA = 0; 
@@ -342,10 +342,10 @@
             // 1. 减去基准角
             const relativeGamma = gamma - BASELINE_GAMMA;
 
-            // 2. 限制相对 gamma 角在 [-10, 10] 之间
+            // 2. 限制相对 gamma 角在 [-20, 20] 之间
             const clampedGamma = Math.max(-MAX_TILT_ANGLE, Math.min(MAX_TILT_ANGLE, relativeGamma));
             
-            // 3. 映射逻辑：将 [-10, 10] 映射到 [0, 1]
+            // 3. 映射逻辑：将 [-20, 20] 映射到 [0, 1]
             let position = (clampedGamma + MAX_TILT_ANGLE) / TILT_RANGE;
             
             // 4. 最终保险
